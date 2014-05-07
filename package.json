@@ -1,0 +1,10 @@
+{ "name": "nodekk"
+, "version": "0.0.1"
+, "description" : "KolayKimlik oauth middleware for Express 4"
+, 
+
+"dependencies": {
+    "oauth"						: "*"
+  }
+}
+
