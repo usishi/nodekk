@@ -1,6 +1,7 @@
 var 	OAuth         = require('oauth').OAuth;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+var oauth ;
 
 
 var startoauthjob = function(req,res){
@@ -24,30 +25,28 @@ exports.kolaykimlik = function(options){
 		console.error('\nKolay Kimlik Ayarları Doğru Yapılmamış\n');
 		process.exit(1);
 	}
-	var oauth = new OAuth(
+	oauth = new OAuth(
     "https://www.kolaykimlik.com/oauthv1/initiate",
-    "https://www.kolaykimlik.com/oauthv1/authorize",
+    "https://www.kolaykimlik.com/oauthv1/token",
     options.consumer_key,
     options.consumer_secret,
-    '1.0A',
+    '1.0',
     options.baseurl+'/kolaykimlik/callback',
     'HMAC-SHA1'
   );
   return function(req, res, next) {
   	if (req.method !== 'GET') return next();
-  	if (req.url.indexOf('/kolaykimlik/')<0){
+  	if (req.url.indexOf('/kolaykimlik/callback')<0){
   		next();
   	} else {
       if (req.session.oauth) {
         req.session.oauth.verifier = req.query.oauth_verifier;
         var oauth_data = req.session.oauth;
-     
         oauth.getOAuthAccessToken(
           oauth_data.token,
           oauth_data.token_secret,
           oauth_data.verifier,
           function(error, oauth_access_token, oauth_access_token_secret, results) {
-            console.log(results);
             if (error) {
               console.log(error);
               res.send("Authentication Failure!");
@@ -58,7 +57,7 @@ exports.kolaykimlik = function(options){
               oauth.get('https://www.kolaykimlik.com/oauthv1/userinfo',oauth_access_token,oauth_access_token_secret,function(e, data, oauthres){
                 if (e) console.error(e);
                 req.session.user=JSON.parse(data);
-                next();
+                res.redirect(req.session.logincallbackurl);
               });    
             }
           }
@@ -72,6 +71,7 @@ exports.kolaykimlik = function(options){
 
 exports.ozelbolge = function(req,res,next){
 	if (!req.session.user){
+    req.session.logincallbackurl=req.url;
     startoauthjob(req,res);
   } else {
     next();
