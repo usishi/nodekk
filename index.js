@@ -1,5 +1,23 @@
 var 	OAuth         = require('oauth').OAuth;
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+
+var startoauthjob = function(req,res){
+  oauth.getOAuthRequestToken(function(error, oauth_token, oauth_token_secret, results) {
+    if (error) {
+      console.log(error);
+      res.send("KolayKimlik Sistemlerindeki geçici bir problem nedeniyle giriş yapılamadı.");
+    }
+    else {
+      req.session.oauth = {
+        token: oauth_token,
+        token_secret: oauth_token_secret
+      };
+      res.redirect('https://www.kolaykimlik.com/oauthv1/authorize?oauth_token='+oauth_token);
+    }
+  });
+}
 
 exports.kolaykimlik = function(options){
 	if (!options || !options.consumer_key || !options.consumer_secret || !options.baseurl){
@@ -7,8 +25,6 @@ exports.kolaykimlik = function(options){
 		process.exit(1);
 	}
 	var oauth = new OAuth(
-    //'http://oauth.eba.gov.tr/server/auth/oauth/request_token',
-    //'http://oauth.eba.gov.tr/server/auth/oauth/access_token',
     "https://www.kolaykimlik.com/oauthv1/initiate",
     "https://www.kolaykimlik.com/oauthv1/authorize",
     options.consumer_key,
@@ -22,11 +38,42 @@ exports.kolaykimlik = function(options){
   	if (req.url.indexOf('/kolaykimlik/')<0){
   		next();
   	} else {
- 			console.log("EVEET bizlik bu url"); 		
+      if (req.session.oauth) {
+        req.session.oauth.verifier = req.query.oauth_verifier;
+        var oauth_data = req.session.oauth;
+     
+        oauth.getOAuthAccessToken(
+          oauth_data.token,
+          oauth_data.token_secret,
+          oauth_data.verifier,
+          function(error, oauth_access_token, oauth_access_token_secret, results) {
+            console.log(results);
+            if (error) {
+              console.log(error);
+              res.send("Authentication Failure!");
+            }
+            else {
+              req.session.oauth.access_token = oauth_access_token;
+              req.session.oauth.access_token_secret = oauth_access_token_secret;
+              oauth.get('https://www.kolaykimlik.com/oauthv1/userinfo',oauth_access_token,oauth_access_token_secret,function(e, data, oauthres){
+                if (e) console.error(e);
+                req.session.user=JSON.parse(data);
+                next();
+              });    
+            }
+          }
+        );
+      } else {
+        startoauthjob(req,res);
+      }
   	}
   }
 }
 
 exports.ozelbolge = function(req,res,next){
-	console.log("BU bölge şifre ister");
+	if (!req.session.user){
+    startoauthjob(req,res);
+  } else {
+    next();
+  }
 }
